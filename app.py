@@ -1,56 +1,42 @@
-import os
-import wyze_sdk
+from wyzeBulbController import WyzeBulbController
 from room_bulbs import room_bulbs
-from wyze_sdk.errors import WyzeApiError
-from flask import Flask, request
-
-client = wyze_sdk.Client(email=os.environ['WYZE_EMAIL'], password=os.environ['WYZE_PASSWORD'])
+from flask import Flask, request, Response
 
 app = Flask(__name__)
 
+wyzeBulbController = WyzeBulbController()
+
+'''
+  Flask route to confirm flask is running
+'''
 @app.route('/')
 def ping():
-    return 'I am alive!'
+    return Response("I am alive!", 200)
 
-def create_toggle_response(status_code, message):
-  response = dict()
-  response['status_code'] = status_code
-  response['message'] = message
-  return response
+'''
+  Flask route for toggle lights in a given room.
 
+  param room - (string) the room in which the lights should be toggles on/off
+'''
 @app.route('/toggle_light')
-def toggle_light():
+def request_toggle_light():
 
   target_room = request.args.get('room')
 
   # Check if room is given
   if target_room == None:
-    return create_toggle_response(400, 'missing target room')
+    return Response('missing target room', 400)
 
   # Check if room exists
   if target_room not in room_bulbs.keys():
-    return create_toggle_response(400, f"room given is not a supported room. Supported rooms: {room_bulbs.keys()}")
+    return Response(f"room given is not a supported room. Supported rooms: {room_bulbs.keys()}", 400) 
 
-  # get first bulb info
-  first_bulb = client.bulbs.info(device_mac=room_bulbs[target_room][0])
+  try:
+    wyzeBulbController.toggle_in_parrallel(room_bulbs[target_room])
+  except Exception as e:
+    print(f"Exception thrown when running toggle in parrallel: {e}")
+    return Response(f"Failed trying to toggle lights: \n{e}", 500)
+  
 
-  for bulb_mac in room_bulbs[target_room]:
-    try:
-      bulb = client.bulbs.info(device_mac=bulb_mac)
-
-      # check if bulb online
-      if not bulb.is_online:
-        continue
-
-      if first_bulb.is_on:
-        client.bulbs.turn_off(device_mac=bulb.mac, device_model=bulb.product.model)
-      else:
-        client.bulbs.turn_on(device_mac=bulb.mac, device_model=bulb.product.model)
-
-    except WyzeApiError as e:
-        # You will get a WyzeApiError if the request failed
-        print(f"Got an error: {e}")
-        return create_toggle_response(500, 'an error occurred when contacting wyze')
-
-  return create_toggle_response(200, 'success')
+  return Response("successfully toggled {room}'s lights".format(room = target_room.replace("_", " ")), 200)
   
