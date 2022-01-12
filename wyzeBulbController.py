@@ -33,6 +33,7 @@ class WyzeBulbController():
         self.client.bulbs.turn_on(device_mac=bulb.mac, device_model=bulb.product.model)
     except WyzeApiError as e:
       print(f"Got an error when toggling {bulb.nickname} ({bulb.mac}): {e}")
+      self.refresh_token() 
       exception_arr.append(e)
     except Exception as e:
       print(f"Got an error: {e}")
@@ -58,3 +59,7 @@ class WyzeBulbController():
       if len(exception_arr) > 0:
         print("test")
         raise Exception("There was an error toggling the lights: \n{}".format('\n'.join([str(e) for e in exception_arr])))
+
+  def refresh_token(self):
+    self.client = wyze_sdk.Client(email=os.environ['WYZE_EMAIL'], password=os.environ['WYZE_PASSWORD'])
+    
